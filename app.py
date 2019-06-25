@@ -1,5 +1,5 @@
 from flask import Flask, request
-from flask_restful import Resource, Api
+from flask_restful import Resource, Api, reqparse
 from flask_jwt import jwt_required, JWT
 from security import authenticate_users, identity
 
@@ -11,6 +11,12 @@ jwt_token = JWT(app, authenticate_users, identity)  # will create '/auth' endpoi
 
 
 class Item(Resource):
+    parser = reqparse.RequestParser()
+    parser.add_argument(
+        'price', type=float, required=True,
+        help="This field can't be blank"
+    )
+
     @jwt_required()
     def get(self, name):
         item = next(filter(lambda x: x['name'] == name, items), None)
@@ -31,7 +37,7 @@ class Item(Resource):
         return {'message': 'item deleted'}
 
     def put(self, name):
-        req_data = request.get_json()
+        req_data=Item.parser.parse_args()
         item = next(filter(lambda x: x['name'] == name, items), None)
         if item is None:
             item = {'name': name, 'price': req_data['price']}
