@@ -1,5 +1,5 @@
 from flask_restful import Resource, reqparse
-from flask_jwt import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_claims, get_jwt_identity, jwt_optional
 from models.item import ItemModel
 
 
@@ -14,7 +14,7 @@ class Item(Resource):
         help="This field can't be blank"
     )
 
-    @jwt_required()
+    @jwt_required
     def get(self, name):
         item = ItemModel.find_item_by_name(name)
         if item:
@@ -35,12 +35,17 @@ class Item(Resource):
 
         return item.json(), 200
 
+    @jwt_required
     def delete(self, name):
+        claims = get_jwt_claims()
+        if not claims['is_admin']:
+            return {'message': 'admin privilege required'}, 401
+
         if ItemModel.find_item_by_name(name) is None:
-            return {'message': 'item {} does not exist'.format(name)}
+            return {'message': 'item {} does not exist'.format(name)}, 404
 
         item = ItemModel.find_item_by_name(name)
-        item.delete()
+        item.delete_from_db()
         return {'message': 'item deleted'}
 
     def put(self, name):
@@ -56,6 +61,15 @@ class Item(Resource):
 
 
 class Items(Resource):
+    # if user is logged in return whole data else only return name
+    @jwt_optional
     def get(self):
-        return {'items': list(map(lambda x: x.json(), ItemModel.query.all()))}
+        user_id = get_jwt_identity()
+        items = [item.json() for item in ItemModel.query.all()]
 
+        if user_id:
+            return {'items': items}
+        return {
+            'item': [item['name'] for item in items],
+            'message': 'more data available when logged in'
+        }
